@@ -1,6 +1,7 @@
 //coding exercises following Udacity course on localisation
 #include<iostream>
 #include<vector>
+#include "help_functions.h"
 
 using std::vector;
 
@@ -22,13 +23,22 @@ int main() {
        std::cout << priors[i] << std::endl;
    }
 
+   float value = 1;  //
+   float parameter = 1.0;  // set as control parameter or observation measurement
+   float stdev = 1.0;  // position or observation standard deviation
+
+   float prob = Helpers::normpdf(value, parameter, stdev);
+
+   std::cout << prob << std::endl;
+
+
    return 0;
 }
 
 vector<float> initialize_priors(int map_size, vector<float> landmark_positions, float stdev){
     // initialize priors assuming vehicle at landmark +/- 1.0 meters position stdev
-
     // set all priors to 0.0
+    // for each map point priors contains the probability for the car to be at that point
     vector<float> priors(map_size, 0.0);
     float norm_term = landmark_positions.size() * (2 * stdev + 1);
     for(size_t i=0; i<landmark_positions.size(); i++){
