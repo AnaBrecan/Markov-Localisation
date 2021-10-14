@@ -7,32 +7,40 @@ using std::vector;
 
 // initialize priors assuming vehicle at landmark +/- 1.0 meters position stdev
 vector<float> initialize_priors(int map_size, vector<float> landmark_positions, float stdev);
+// compute the positionprobability using only the modition model
+float motion_model(float pseudo_position, float movement, vector<float> priors,
+                   int map_size, int control_stdev);
 
 int main() {
-    // set standard deviation of position
+    // set standard deviation of control:
+    float control_stdev = 1.0f;
+
+    // set standard deviation of position:
     float position_stdev = 1.0f;
-    // set map horizon distance in meters
+
+    // meters vehicle moves per time step
+    float movement_per_timestep = 1.0f;
+
+    // number of x positions on map
     int map_size = 25;
+
     // initialize landmarks
-    vector<float> landmark_positions {5,10,20};
+    vector<float> landmark_positions {5, 10, 20};
+
     // initialize priors
     vector<float> priors = initialize_priors(map_size, landmark_positions,
-                                          position_stdev);
-   // print values to stdout
-   for (size_t i = 0; i < priors.size(); i++) {
-       std::cout << priors[i] << std::endl;
-   }
+                                           position_stdev);
 
-   float value = 1;  //
-   float parameter = 1.0;  // set as control parameter or observation measurement
-   float stdev = 1.0;  // position or observation standard deviation
-
-   float prob = Helpers::normpdf(value, parameter, stdev);
-
-   std::cout << prob << std::endl;
-
-
-   return 0;
+    // step through each pseudo position x (i)
+    for (float i = 0; i < map_size; ++i) {
+        float pseudo_position = i;
+        // get the motion model probability for each x position
+        float motion_prob = motion_model(pseudo_position, movement_per_timestep,
+                                     priors, map_size, control_stdev);
+        // print to stdout
+        std::cout << pseudo_position << "\t" << motion_prob << std::endl;
+    }
+    return 0;
 }
 
 vector<float> initialize_priors(int map_size, vector<float> landmark_positions, float stdev){
@@ -49,4 +57,26 @@ vector<float> initialize_priors(int map_size, vector<float> landmark_positions, 
         priors.at(landmark_positions[i]) += 1.0/norm_term;
     }
     return priors;
+}
+
+// implement the motion model: calculates prob of being at an estimated position at time t
+float motion_model(float pseudo_position, float movement, vector<float> priors,
+                   int map_size, int control_stdev) {
+  // initialize probability
+  float position_prob = 0.0f;
+
+  // loop over state space for all possible positions x (convolution):
+  for (float j=0; j< map_size; ++j) {
+    float next_pseudo_position = j;
+    // distance from i to j
+    float distance_ij = pseudo_position-next_pseudo_position;
+
+    // transition probabilities:
+    float transition_prob = Helpers::normpdf(distance_ij, movement,
+                                             control_stdev);
+    // estimate probability for the motion model, this is our prior
+    position_prob += transition_prob*priors[j];
+  }
+
+  return position_prob;
 }
