@@ -6,10 +6,16 @@
 using std::vector;
 
 // initialize priors assuming vehicle at landmark +/- 1.0 meters position stdev
-vector<float> initialize_priors(int map_size, vector<float> landmark_positions, float stdev);
+vector<float> initialize_priors(int map_size, vector<float> landmark_positions,
+    float stdev);
+
 // compute the positionprobability using only the modition model
 float motion_model(float pseudo_position, float movement, vector<float> priors,
-                   int map_size, int control_stdev);
+    int map_size, int control_stdev);
+
+//
+vector<float> pseudo_range_estimator(vector<float> landmark_positions,
+    float pseudo_position);
 
 int main() {
     // set standard deviation of control:
@@ -79,4 +85,15 @@ float motion_model(float pseudo_position, float movement, vector<float> priors,
   }
 
   return position_prob;
+}
+
+vector<float> pseudo_range_estimator(vector<float> landmark_positions, float pseudo_position){
+    vector<float> pseudo_ranges;
+    for (size_t i=0; i< landmark_positions.size(); i++){
+        if (landmark_positions[i] - pseudo_position > 0.0f){
+            pseudo_ranges.push_back(landmark_positions[i] - pseudo_position);
+        }
+    }
+    sort(pseudo_ranges.begin(), pseudo_ranges.end());
+    return pseudo_ranges;
 }
