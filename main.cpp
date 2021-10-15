@@ -1,9 +1,13 @@
 //coding exercises following Udacity course on localisation
 #include<iostream>
 #include<vector>
+#include<algorithm>
 #include "help_functions.h"
 
 using std::vector;
+using std::cout;
+using std::endl;
+
 
 // initialize priors assuming vehicle at landmark +/- 1.0 meters position stdev
 vector<float> initialize_priors(int map_size, vector<float> landmark_positions,
@@ -17,36 +21,112 @@ float motion_model(float pseudo_position, float movement, vector<float> priors,
 vector<float> pseudo_range_estimator(vector<float> landmark_positions,
     float pseudo_position);
 
+// observation model: calculate likelihood prob term based on landmark proximity
+float observation_model(vector<float> landmark_positions,
+                            vector<float> observations, vector<float> pseudo_ranges,
+                            float distance_max, float observation_stdev);
+
+
 int main() {
-    // set standard deviation of control:
+    // set standard deviation of control
     float control_stdev = 1.0f;
 
-    // set standard deviation of position:
+    // set standard deviation of position
     float position_stdev = 1.0f;
 
     // meters vehicle moves per time step
     float movement_per_timestep = 1.0f;
 
+    // set observation standard deviation
+    float observation_stdev = 1.0f;
+
     // number of x positions on map
     int map_size = 25;
 
-    // initialize landmarks
-    vector<float> landmark_positions {5, 10, 20};
+    // set distance max
+    float distance_max = map_size;
+
+    // define landmarks
+    vector<float> landmark_positions {3, 9, 14, 23};
+
+    // define observations vector, each inner vector represents a set
+    //   of observations for a time step
+    vector<vector<float> > sensor_obs {{1,7,12,21}, {0,6,11,20}, {5,10,19},
+                                       {4,9,18}, {3,8,17}, {2,7,16}, {1,6,15},
+                                       {0,5,14}, {4,13}, {3,12}, {2,11}, {1,10},
+                                       {0,9}, {8}, {7}, {6}, {5}, {4}, {3}, {2},
+                                       {1}, {0}, {}, {}, {}};
 
     // initialize priors
-    vector<float> priors = initialize_priors(map_size, landmark_positions,
-                                           position_stdev);
+    vector<float> priors = initialize_priors(map_size, landmark_positions, position_stdev);
 
-    // step through each pseudo position x (i)
-    for (float i = 0; i < map_size; ++i) {
-        float pseudo_position = i;
-        // get the motion model probability for each x position
-        float motion_prob = motion_model(pseudo_position, movement_per_timestep,
-                                     priors, map_size, control_stdev);
-        // print to stdout
-        std::cout << pseudo_position << "\t" << motion_prob << std::endl;
+    cout << "-----------PRIORS INIT--------------" << endl;
+    for (int p = 0; p < priors.size(); ++p){
+        cout << priors[p] << endl;
     }
-    return 0;
+    // initialize posteriors
+    vector<float> posteriors(map_size, 0.0);
+
+    // specify time steps
+    int time_steps = sensor_obs.size();
+
+    // declare observations vector
+    vector<float> observations;
+
+    // cycle through time steps
+    for (int t = 0; t < time_steps; ++t) {
+        cout << "---------------TIME STEP---------------" << endl;
+        cout << "t = " << t << endl;
+        cout << "-----Motion----------OBS----------------PRODUCT--" << endl;
+
+        if (!sensor_obs[t].empty()) {
+            observations = sensor_obs[t];
+        } else {
+            observations = {float(distance_max)};
+        }
+
+        // step through each pseudo position x (i)
+        for (unsigned int i = 0; i < map_size; ++i) {
+            float pseudo_position = float(i);
+
+            // get the motion model probability for each x position
+            float motion_prob = motion_model(pseudo_position, movement_per_timestep,
+                                                                   priors, map_size, control_stdev);
+            // get pseudo ranges
+            vector<float> pseudo_ranges = pseudo_range_estimator(landmark_positions, pseudo_position);
+
+            // get observation probability
+            float observation_prob = observation_model(landmark_positions, observations,
+                                                                             pseudo_ranges, distance_max,
+                                                                             observation_stdev);
+
+            // calculate the ith posterior
+            posteriors[i] = motion_prob * observation_prob;
+            cout << motion_prob << "\t" << observation_prob << "\t"  << "\t"  << motion_prob * observation_prob << endl;
+        }
+        cout << "----------RAW---------------" << endl;
+        for (int p = 0; p < posteriors.size(); ++p) {
+            cout << posteriors[p] << endl;
+        }
+        // normalize
+        posteriors = Helpers::normalize_vector(posteriors);
+
+        // print to stdout
+        cout << posteriors[t] <<  "\t" << priors[t] << endl;
+        cout << "----------NORMALIZED---------------" << endl;
+
+        //update
+        priors = posteriors;
+        for (int p = 0; p < posteriors.size(); ++p) {
+            cout << posteriors[p] << endl;
+        }
+
+        // print posteriors vectors to stdout
+        for (int p = 0; p < posteriors.size(); ++p) {
+            cout << posteriors[p] << endl;
+        }
+    }
+return 0;
 }
 
 vector<float> initialize_priors(int map_size, vector<float> landmark_positions, float stdev){
@@ -96,4 +176,34 @@ vector<float> pseudo_range_estimator(vector<float> landmark_positions, float pse
     }
     sort(pseudo_ranges.begin(), pseudo_ranges.end());
     return pseudo_ranges;
+}
+
+// observation model: calculate likelihood prob term based on landmark proximity
+float observation_model(vector<float> landmark_positions,
+                        vector<float> observations, vector<float> pseudo_ranges,
+                        float distance_max, float observation_stdev) {
+  // initialize observation probability
+  float distance_prob = 1.0f;
+
+  // run over current observation vector
+  for (int z=0; z< observations.size(); ++z) {
+    // define min distance
+    float pseudo_range_min;
+
+    // check, if distance vector exists
+    if (pseudo_ranges.size() > 0) {
+      // set min distance
+      pseudo_range_min = pseudo_ranges[0];
+      // remove this entry from pseudo_ranges-vector
+      pseudo_ranges.erase(pseudo_ranges.begin());
+    } else {  // no or negative distances: set min distance to a large number
+        pseudo_range_min = std::numeric_limits<const float>::infinity();
+    }
+
+    // estimate the probability for observation model, this is our likelihood
+    distance_prob *= Helpers::normpdf(observations[z], pseudo_range_min,
+                                      observation_stdev);
+  }
+
+  return distance_prob;
 }
